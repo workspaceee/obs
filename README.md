@@ -11,11 +11,14 @@
 
 ## Быстрый старт на Windows (рекомендуется)
 
-Готовая папка лежит в [`windows/`](windows/). Собрать архив можно через панель (вкладка **OBS → «Скачать IMBA-Widgets-Windows.zip»**) или вручную — см. ниже.
+Репозиторий сразу готов к запуску — структура папок та же, что в архиве из панели.
 
-1. Положите папку `IMBA-Widgets` на рабочий стол.
-2. Первый раз: **`1_FIRST_START_INSTALL.bat`** — скачает портативные Python 3.12 и AutoHotkey v2 *внутрь папки* (без прав администратора), установит библиотеки и всё запустит.
-3. Дальше каждый раз: **`2_START.bat`**. Остановить: `Ctrl+C` или **`3_STOP.bat`**.
+1. На GitHub: **Code → Download ZIP**, затем правой кнопкой по архиву → **«Извлечь всё…»** (не запускайте файлы изнутри архива).
+2. Положите распакованную папку (`obs-main`) на рабочий стол. Файлы `.bat` должны лежать **в главной папке** рядом с `backend\` и `windows\` — ничего не перемещайте.
+3. Первый раз: **`1_FIRST_START_INSTALL.bat`** — скачает портативные Python 3.12 и AutoHotkey v2 *внутрь папки* (`runtime\`, без прав администратора), установит библиотеки и всё запустит.
+4. Дальше каждый раз: **`2_START.bat`**. Остановить: `Ctrl+C` или **`3_STOP.bat`**.
+
+Если Windows покажет «Система Windows защитила ваш компьютер» → «Подробнее» → «Выполнить в любом случае».
 
 Ссылки для OBS (Источник → Браузер):
 
@@ -25,26 +28,30 @@
 | Звание | `http://127.0.0.1:8765/widget/rank` | 900 × 360 |
 
 Панель: `http://127.0.0.1:8765/panel` — пароль по умолчанию `imba2025` (меняется в панели).
-Данные хранятся в `data/imba-db.json` (MongoDB не нужна).
+Данные хранятся в `data\imba-db.json` (MongoDB не нужна). Подробно — в [`README_RU.txt`](README_RU.txt).
 
 ---
 
 ## Структура репозитория
 
 ```
+1_FIRST_START_INSTALL.bat   первый запуск: установка всего нужного + старт
+2_START.bat                 обычный запуск
+3_STOP.bat                  остановка
+README_RU.txt               инструкция для Windows
 backend/            FastAPI: API виджетов (long-poll), панель, горячие клавиши, сборка Windows-архива
   server.py         основной сервер
-  storage.py        хранилище: MongoDB (если задан MONGO_URL) или JSON-файл (локально)
+  storage.py        хранилище: MongoDB (облако) или JSON-файл (локально на Windows)
   helper_script.py  генерация AutoHotkey v2 помощника
-  bundle.py         сборка zip для Windows
-frontend/           React (CRA + craco, Tailwind, shadcn/ui, framer-motion)
+  bundle.py         сборка zip для Windows (та же структура, что у репозитория)
+frontend/           исходники React (CRA + craco, Tailwind, shadcn/ui, framer-motion)
   public/medals/    41 медаль Dota 2 (PNG, прозрачные, 512px)
-windows/            Windows-пакет
-  launchers/        1_FIRST_START_INSTALL.bat, 2_START.bat, 3_STOP.bat, README_RU.txt
-  scripts/          install.ps1, start.ps1, stop.ps1, common.ps1
-  web/              готовая сборка фронтенда для локального режима
+windows/
+  scripts/          install.ps1, start.ps1, stop.ps1, common.ps1 (только ASCII) + messages.ru.json (UTF-8)
+  web/              готовая сборка виджетов и панели для локального режима
+  requirements-local.txt   библиотеки Python для Windows
   build_web.sh      пересборка web/
-tests/              POC: загрузка и проверка медалей
+runtime/, data/     создаются автоматически при установке/запуске (в git не попадают)
 ```
 
 ## Запуск для разработки (облако / Linux)
