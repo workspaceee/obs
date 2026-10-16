@@ -161,7 +161,7 @@ class _NoClient:
 def get_db():
     """Returns (db, client, mode)."""
     mongo_url = os.environ.get("MONGO_URL")
-    if mongo_url:
+    if mongo_url and os.environ.get("IMBA_LOCAL") != "1":
         from motor.motor_asyncio import AsyncIOMotorClient
 
         client = AsyncIOMotorClient(mongo_url)

@@ -1,4 +1,12 @@
-"""Builds the ready-to-run Windows folder (zip) for the local version."""
+"""Builds the ready-to-run Windows folder (zip) for the local version.
+
+The zip has EXACTLY the same layout as the GitHub repository, so both ways work:
+  IMBA-Widgets/
+    1_FIRST_START_INSTALL.bat  2_START.bat  3_STOP.bat  README_RU.txt
+    backend/   server.py storage.py helper_script.py bundle.py
+    windows/   scripts/*.ps1 + messages.ru.json, web/ (prebuilt site), requirements-local.txt
+    data/      (database + logs, created on first start)
+"""
 import os
 import tempfile
 import time
@@ -7,43 +15,34 @@ from pathlib import Path
 
 ROOT_NAME = "IMBA-Widgets"
 BACKEND_FILES = ["server.py", "helper_script.py", "storage.py", "bundle.py"]
-
-LOCAL_ENV = """# IMBA Widgets - local Windows settings
-# Panel password used ONLY on the very first start (later change it in the panel, tab OBS)
-PANEL_PASSWORD=imba2025
-CORS_ORIGINS=*
-"""
+LAUNCHERS = ["1_FIRST_START_INSTALL.bat", "2_START.bat", "3_STOP.bat", "README_RU.txt"]
+CRLF_EXT = {".bat", ".cmd", ".ps1", ".txt", ".json"}
 
 
-def _crlf(text: str) -> str:
-    return text.replace("\r\n", "\n").replace("\n", "\r\n")
+def _norm(path: Path) -> bytes:
+    data = path.read_bytes()
+    if path.suffix.lower() in CRLF_EXT:
+        data = data.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+    return data
 
 
 def build_windows_zip(backend_dir: Path, windows_dir: Path) -> str:
     backend_dir = Path(backend_dir)
     windows_dir = Path(windows_dir)
+    project_root = windows_dir.parent
     out = Path(tempfile.gettempdir()) / f"IMBA-Widgets-Windows-{int(time.time())}.zip"
     with zipfile.ZipFile(out, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as z:
-        def add_text(arc, text, bom=False):
-            data = _crlf(text).encode("utf-8")
-            if bom:
-                data = b"\xef\xbb\xbf" + data
+        def put(arc: str, data: bytes):
             z.writestr(f"{ROOT_NAME}/{arc}", data)
 
-        # launchers (ASCII .bat) + readme
-        for f in sorted((windows_dir / "launchers").iterdir()):
-            if f.is_file():
-                add_text(f.name, f.read_text("utf-8"), bom=f.suffix.lower() == ".txt")
-        # powershell scripts (UTF-8 BOM so Windows PowerShell 5.1 reads Cyrillic correctly)
+        for name in LAUNCHERS:
+            put(name, _norm(project_root / name))
         for f in sorted((windows_dir / "scripts").iterdir()):
             if f.is_file():
-                add_text(f"app/scripts/{f.name}", f.read_text("utf-8"), bom=f.suffix.lower() == ".ps1")
-        # backend
+                put(f"windows/scripts/{f.name}", _norm(f))
+        put("windows/requirements-local.txt", _norm(windows_dir / "requirements-local.txt"))
         for name in BACKEND_FILES:
-            add_text(f"app/backend/{name}", (backend_dir / name).read_text("utf-8"))
-        add_text("app/backend/requirements.txt", (windows_dir / "requirements-local.txt").read_text("utf-8"))
-        add_text("app/backend/.env", LOCAL_ENV)
-        # prebuilt web app (widgets + panel + medals)
+            put(f"backend/{name}", (backend_dir / name).read_bytes())
         web = windows_dir / "web"
         for root, _dirs, files in os.walk(web):
             for fn in files:
@@ -51,10 +50,8 @@ def build_windows_zip(backend_dir: Path, windows_dir: Path) -> str:
                 rel = p.relative_to(web).as_posix()
                 if rel.endswith(".map"):
                     continue
-                z.write(p, f"{ROOT_NAME}/app/web/{rel}")
-        # empty data dir marker
-        z.writestr(f"{ROOT_NAME}/data/.keep", b"")
-    # cleanup older zips
+                z.write(p, f"{ROOT_NAME}/windows/web/{rel}")
+        put("data/.keep", b"")
     for old in Path(tempfile.gettempdir()).glob("IMBA-Widgets-Windows-*.zip"):
         if old != out and time.time() - old.stat().st_mtime > 600:
             try:

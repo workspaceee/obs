@@ -1,0 +1,6 @@
+# Windows launchers must keep CRLF and exact bytes (no conversion by git / GitHub zip)
+*.bat -text
+*.cmd -text
+*.ps1 -text
+README_RU.txt -text
+windows/scripts/messages.ru.json -text

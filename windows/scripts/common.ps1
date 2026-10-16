@@ -1,13 +1,22 @@
 # IMBA Widgets - shared settings and helpers (Windows PowerShell 5.1+)
+# NOTE: this file is pure ASCII on purpose. All Russian text lives in messages.ru.json
+#       (read explicitly as UTF-8), so the scripts work with any file encoding.
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch {}
 
+# Folder layout (same in the GitHub repo and in the zip):
+#   <Root>\1_FIRST_START_INSTALL.bat, 2_START.bat, 3_STOP.bat
+#   <Root>\backend\server.py ...
+#   <Root>\windows\scripts\*.ps1   <- this file
+#   <Root>\windows\web\index.html  (prebuilt widgets + panel)
+#   <Root>\runtime\  (created: portable Python + AutoHotkey)
+#   <Root>\data\     (created: database, logs)
 $Root      = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
-$AppDir    = Join-Path $Root 'app'
-$Backend   = Join-Path $AppDir 'backend'
-$Web       = Join-Path $AppDir 'web'
+$Backend   = Join-Path $Root 'backend'
+$Web       = Join-Path $Root 'windows\web'
+$ReqFile   = Join-Path $Root 'windows\requirements-local.txt'
 $Runtime   = Join-Path $Root 'runtime'
 $PyDir     = Join-Path $Runtime 'python'
 $PyExe     = Join-Path $PyDir 'python.exe'
@@ -22,13 +31,39 @@ $PyVersion = '3.12.8'
 $PyUrl     = "https://www.python.org/ftp/python/$PyVersion/python-$PyVersion-embed-amd64.zip"
 $GetPipUrl = 'https://bootstrap.pypa.io/get-pip.py'
 $AhkUrl    = 'https://www.autohotkey.com/download/ahk-v2.zip'
-$InstallVersion = '2'
+$InstallVersion = '3'
+
+# ---------- messages (UTF-8 JSON) ----------
+$script:Msg = $null
+try {
+    $script:Msg = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'messages.ru.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+} catch {}
+function M([string]$k) {
+    if ($script:Msg -and ($script:Msg.PSObject.Properties.Name -contains $k)) { return [string]$script:Msg.$k }
+    return $k
+}
 
 function Say([string]$t)  { Write-Host "  $t" }
 function Step([string]$t) { Write-Host ''; Write-Host "  >> $t" -ForegroundColor Cyan }
 function Ok([string]$t)   { Write-Host "  [OK] $t" -ForegroundColor Green }
 function Warn([string]$t) { Write-Host "  [!] $t" -ForegroundColor Yellow }
 function Fail([string]$t) { Write-Host ''; Write-Host "  [X] $t" -ForegroundColor Red }
+
+# Check that the project files are where the scripts expect them
+function Test-Layout {
+    $need = @(
+        (Join-Path $Backend 'server.py'),
+        (Join-Path $Backend 'storage.py'),
+        (Join-Path $Backend 'helper_script.py'),
+        (Join-Path $Web 'index.html'),
+        $ReqFile
+    )
+    $missing = @($need | Where-Object { -not (Test-Path -LiteralPath $_) })
+    if ($missing.Count -gt 0) {
+        $rel = ($missing | ForEach-Object { $_.Substring($Root.Length).TrimStart('\') }) -join ', '
+        throw ((M 'missing_files') -f $rel)
+    }
+}
 
 # Run a console program, print its output in grey, return exit code (never throws on stderr text)
 function Invoke-Native {
@@ -56,7 +91,7 @@ function Get-File {
             Invoke-WebRequest -Uri $Url -OutFile $OutFile -UseBasicParsing -TimeoutSec 300
             if ((Test-Path -LiteralPath $OutFile) -and ((Get-Item -LiteralPath $OutFile).Length -gt 1000)) { return }
         } catch {
-            Warn "Попытка $i не удалась: $($_.Exception.Message)"
+            Warn ((M 'dl_try_fail') -f $i, $_.Exception.Message)
         }
         $curl = $null
         if ($env:SystemRoot) { $curl = Join-Path $env:SystemRoot 'System32\curl.exe' }
@@ -66,7 +101,7 @@ function Get-File {
         }
         Start-Sleep -Seconds (2 * $i)
     }
-    throw "Не удалось скачать $Url"
+    throw ((M 'dl_fail') -f $Url)
 }
 
 function Test-Installed {
